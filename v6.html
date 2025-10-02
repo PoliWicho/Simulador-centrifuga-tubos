@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulador de Centrífuga Tubular Biológica - Diseño Final</title>
+    
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        /* Estilos CSS */
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f0f5;
+            padding: 20px;
+        }
+
+        h1 {
+            color: #0077b6;
+            text-align: center;
+        }
+
+        #main-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            max-width: 1200px;
+            margin: 20px auto;
+        }
+
+        /* Columna Izquierda: Selección, Propiedades y Gráfica */
+        #left-panel {
+            width: 30%;
+            padding: 20px;
+            background-color: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Columna Central: Centrifuga e Imágenes de Bacterias */
+        #center-panel {
+            width: 35%;
+            padding: 20px;
+            text-align: center;
+        }
+
+        /* Columna Derecha: Resultados Numéricos y Gráfica */
+        #right-panel {
+            width: 30%;
+            padding: 20px;
+            background-color: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        h2, h3 {
+            color: #0096c7;
+            border-bottom: 2px solid #e0f7fa;
+            padding-bottom: 5px;
+            margin-top: 20px;
+        }
+
+        /* Select de Bacteria */
+        label[for="bacteria-select"] {
+            display: block;
+            margin-bottom: 10px;
+            font-size: 1.2em;
+            font-weight: bold;
+        }
+        #bacteria-select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 1em;
+        }
+
+        /* Contenedor de imágenes de Centrifuga y Bacterias */
+        #image-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        .bacteria-img-container {
+            display: flex;
+            justify-content: space-around;
+            width: 100%;
+            margin-top: 15px;
+        }
+        .bacteria-image {
+            width: 45%;
+            border: 2px solid transparent;
+            border-radius: 5px;
+            transition: border-color 0.3s;
+        }
+        .bacteria-image.active {
+            border-color: #e63946; /* Resaltar con color de resultados */
+        }
+        .bacteria-image img, #centrifuga-img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 3px;
+        }
+        #centrifuga-img {
+            max-width: 100%; /* Asegura que no sea más ancha que su contenedor */
+            max-height: 230px; /* <--- AJUSTA ESTE VALOR: Altura máxima deseada (ej. 250px) */
+            object-fit: contain; /* Asegura que la imagen se ajuste sin cortarse ni distorsionarse */
+            margin-top: 20px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);  
+        }
+        
+        /* Resultados Numéricos */
+        .result-item {
+            margin-bottom: 15px;
+            padding: 5px;
+            border-bottom: 1px dashed #999ee0;
+        }
+        .result-label {
+            font-weight: bold;
+            display: block;
+        }
+        .result-value {
+            color: #1d506b;
+            font-size: 1.1em;
+        }
+        
+        /* Gráfico */
+        #chart-container {
+            margin-top: 20px;
+            padding: 10px;
+            border-top: 2px solid #e0f7fa;
+        }
+    </style>
+</head>
+<body onload="calcularCentrifugacion()">
+
+    <h1>Simulador de Separación Biológica - E. coli y Salmonella</h1>
+
+    <div id="main-container">
+
+        <div id="left-panel">
+            <h2>Selección y Parámetros</h2>
+            <label for="bacteria-select">Selecciona la bacteria:</label>
+            <select id="bacteria-select" onchange="calcularCentrifugacion(); updateImages();">
+                <option value="E. coli">E. coli</option>
+                <option value="Salmonella">Salmonella</option>
+            </select>
+
+            <h3 style="margin-top: 30px;">Propiedades de la Centrifuga (Fijas)</h3>
+            <p class="fixed-prop">Radio Externo (R0): 0.022 m</p>
+            <p class="fixed-prop">Radio Interno (R1): 0.011 m</p>
+            <p class="fixed-prop">Longitud (L): 0.20 m</p>
+            <p class="fixed-prop">Velocidad (N): 15000 RPM</p>
+            <p class="fixed-prop">Viscosidad Caldo (mu): 1.25 cP</p>
+            <p class="fixed-prop">Densidad Caldo (rho_l): 1.00 g/cm³</p>
+            
+            <h3 style="margin-top: 30px;">Propiedades Físicas de la Bacteria</h3>
+            <div id="propiedades-bacteria">
+                </div>
+        </div>
+
+        <div id="center-panel">
+            <h2>Esquema del Equipo</h2>
+             <img id="centrifuga-img" src="centrifuga.jpg" alt="Centrífuga Tubular">
+            
+            <h3 style="margin-top: 20px;">Microorganismos</h3>
+            <div class="bacteria-img-container">
+                <div id="ecoli-img" class="bacteria-image">
+                    <p style="text-align: center; font-size: 0.8em;">E. coli</p>
+                    <img src="ecolii.jpg" alt="E. coli">
+                </div>
+                <div id="salmonella-img" class="bacteria-image">
+                    <p style="text-align: center; font-size: 0.8em;">Salmonella</p>
+                     <img src="salmonella.jpg" alt="Salmonella">
+                </div>
+            </div>
+        </div>
+
+        <div id="right-panel">
+            <h2>Resultados de Simulación</h2>
+            
+            <div class="result-item">
+                <span class="result-label">1. Velocidad Terminal </span>
+                <span class="result-value" id="vg-value"></span> m/s
+            </div>
+            
+            <div class="result-item">
+                <span class="result-label">2. Caudal Crítico </span>
+                <span class="result-value" id="Q2-value"></span> L/h
+            </div>
+
+            <div class="result-item">
+                <span class="result-label">3. Caudal al 50% de Separación </span>
+                <span class="result-value" id="Q502-value"></span> L/h
+            </div>
+
+            <div class="result-item">
+                <span class="result-label">4. Relación de Flujos </span>
+                <span class="result-value" id="Qdiv-value"></span>
+            </div>
+
+            <div class="result-item">
+                <span class="result-label">5. Caudal para Separación Completa </span>
+                <span class="result-value" id="QR2-value"></span> L/h
+            </div>
+
+            <div id="chart-container">
+                <h3>Q vs. RPM (Comportamiento)</h3>
+                <canvas id="qVsRpmChart" style="max-height: 200px;"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Geometría y Parámetros Fijos ---
+        const R0 = 0.022; // radio externo (m)
+        const R1 = 0.011; // radio interno (m)
+        const L = 0.20;   // longitud del rotor (m)
+        const g = 9.81;   // Gravedad (m/s²)
+        const N_rpm = 20000; // Velocidad fija (RPM)
+        const mu_cp = 1.00; // Viscosidad del Caldo (cP)
+        const rho_l_gcm3 = 1.00; // Densidad del Caldo (g/cm³)
+        const RHO_L_KG_M3 = rho_l_gcm3 * 1000;
+        const MU_PAS_BASE = mu_cp / 1000.0; // cP a Pa·s
+
+        // --- Propiedades de las bacterias ---
+        const bacterias = {
+            "E. coli": { "dp": 1.0, "rho_p": 1.05, "Dr": 0.5, "mu_eff": 0.001, "mur_eff": 0.004 }, 
+            "Salmonella": { "dp": 1.5, "rho_p": 1.10, "Dr": 0.5, "mu_eff": 0.00313, "mur_eff": 0.004 }
+        };
+
+        let qVsRpmChart; // Variable global para la instancia del gráfico
+
+        // --- FUNCIONES DE CÁLCULO BÁSICAS ---
+        function calcularSigma(N_rpm) {
+            const pi = Math.PI;
+            const omega = N_rpm * (2 * pi / 60); // RPM a rad/s
+            // Sigma = (pi * L * omega^2 / g) * ((R0^2 - R1^2) / ln(R0/R1))
+            return (pi * L * Math.pow(omega, 2) / g) * ((Math.pow(R0, 2) - Math.pow(R1, 2)) / Math.log(R0 / R1));
+        }
+
+        function calcularVg(dp_um, rho_p_gcm3) {
+            const dp_m = dp_um * 1e-6; 
+            const rho_p_kgm3 = rho_p_gcm3 * 1000;
+            const delta_rho = rho_p_kgm3 - RHO_L_KG_M3;
+            // Ley de Stokes: vg = (dp^2 * delta_rho * g) / (18 * μ)
+            return (Math.pow(dp_m, 2) * delta_rho * g) / (18 * MU_PAS_BASE);
+        }
+
+        function calcularQ2(vg, N_rpm) {
+            const sigma = calcularSigma(N_rpm);
+            const Q1_m3s = vg * sigma;
+            // Q2 = Q1 en L/h (m³/s a L/h: * 3600 * 1000)
+            return Q1_m3s * 3600000; 
+        }
+
+        // --- FUNCIÓN PRINCIPAL DEL SIMULADOR ---
+        function calcularCentrifugacion() {
+            const selectedBacteria = document.getElementById('bacteria-select').value;
+            const data = bacterias[selectedBacteria];
+            
+            // 1. Calcular Velocidad de Sedimentación (vg) - Es constante
+            const vg = calcularVg(data.dp, data.rho_p);
+
+            // 2. Cálculo de los 5 resultados clave (usando la RPM fija de 15000)
+            const RPM_FIJA = 20000;
+            const SIGMA_BASE = calcularSigma(RPM_FIJA);
+            const Q1_m3s = vg * SIGMA_BASE;
+            const Q2_Lh = Q1_m3s * 3600000; // Q2
+
+            // Q502
+            const omega_fixed = RPM_FIJA * (2 * Math.PI / 60);
+            const SIGMA_50 = (Math.PI * L * Math.pow(omega_fixed, 2) / g) * ((Math.pow(R0, 2) - Math.pow(R1, 2)) / Math.log((2 * Math.pow(R0, 2)) / (Math.pow(R0, 2) + Math.pow(R1, 2))));
+            const Q502_Lh = (vg * SIGMA_50) * 3600000; // Q502
+            
+            const Qdiv = Q502_Lh / Q2_Lh; // Qdiv
+            
+            // QR2 (Caudal para Separación Completa, basado en tu lógica)
+            const QC = Q1_m3s; // Q1 en m³/s
+            const dR = data["Dr"] * 1e-6; // Diámetro de restos celulares (asumo µm)
+            const dC = data["dp"] * 1e-6; // dp en m
+            const muC = data["mu_eff"]; 
+            const muR = data["mur_eff"]; 
+            const QR_m3s = (QC * Math.pow(dR, 2) * muC) / (Math.pow(dC, 2) * muR);
+            const QR2_Lh = QR_m3s * 3600000; // QR2
+
+            // 3. Mostrar Propiedades Físicas de la Bacteria
+            document.getElementById('propiedades-bacteria').innerHTML = `
+                <p class="fixed-prop">Diámetro (dp): ${data.dp} µm</p>
+                <p class="fixed-prop">Densidad (rho_p): ${data.rho_p} g/cm³</p>
+            `;
+
+            // 4. Mostrar Resultados Numéricos
+            document.getElementById('vg-value').textContent = vg.toExponential(2);
+            document.getElementById('Q2-value').textContent = Q2_Lh.toFixed(2);
+            document.getElementById('Q502-value').textContent = Q502_Lh.toFixed(2);
+            document.getElementById('Qdiv-value').textContent = Qdiv.toFixed(2);
+            document.getElementById('QR2-value').textContent = QR2_Lh.toFixed(2);
+
+            // 5. Generar o Actualizar Gráfico
+            const rpmPoints = [1000, 2000, 4000];
+            const q2Values = rpmPoints.map(rpm => calcularQ2(vg, rpm));
+            const canvasElement = document.getElementById('qVsRpmChart');
+            
+            if (qVsRpmChart) {
+                qVsRpmChart.data.datasets[0].data = q2Values;
+                qVsRpmChart.data.datasets[0].label = `Q2 para ${selectedBacteria}`;
+                qVsRpmChart.update();
+            } else {
+                qVsRpmChart = new Chart(canvasElement, {
+                    type: 'line',
+                    data: {
+                        labels: rpmPoints.map(String),
+                        datasets: [{
+                            label: `Q2 para ${selectedBacteria} (L/h)`,
+                            data: q2Values,
+                            borderColor: '#e63946',
+                            backgroundColor: 'rgba(230, 57, 70, 0.2)',
+                            tension: 0.4,
+                            pointRadius: 4
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: true,
+                        plugins: {
+                            legend: { display: true, position: 'top', labels: { boxWidth: 10 } },
+                            title: { display: false }
+                        },
+                        scales: {
+                            x: { title: { display: true, text: 'RPM' } },
+                            y: { title: { display: true, text: 'Q₂ (L/h)' }, beginAtZero: true }
+                        }
+                    }
+                });
+            }
+        }
+
+        function updateImages() {
+            const selectedBacteria = document.getElementById('bacteria-select').value;
+            
+            // Actualizar el borde de la imagen activa
+            document.getElementById('ecoli-img').classList.remove('active');
+            document.getElementById('salmonella-img').classList.remove('active');
+
+            if (selectedBacteria === "E. coli") {
+                document.getElementById('ecoli-img').classList.add('active');
+            } else {
+                document.getElementById('salmonella-img').classList.add('active');
+            }
+        }
+        
+        // Llamar a ambas funciones al cargar y al cambiar el selector
+        document.addEventListener('DOMContentLoaded', () => {
+            calcularCentrifugacion();
+            document.getElementById('bacteria-select').addEventListener('change', calcularCentrifugacion);
+            document.getElementById('bacteria-select').addEventListener('change', updateImages);
+        });
+    </script>
+</body>
+</html>
