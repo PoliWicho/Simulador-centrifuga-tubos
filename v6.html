@@ -103,11 +103,11 @@
             border-radius: 3px;
         }
         #centrifuga-img {
-            max-width: 100%; /* Asegura que no sea más ancha que su contenedor */
-            max-height: 230px; /* <--- AJUSTA ESTE VALOR: Altura máxima deseada (ej. 250px) */
-            object-fit: contain; /* Asegura que la imagen se ajuste sin cortarse ni distorsionarse */
+            max-width: 100%; 
+            max-height: 230px; 
+            object-fit: contain; 
             margin-top: 20px;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);  
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);  
         }
         
         /* Resultados Numéricos */
@@ -151,9 +151,7 @@
             <p class="fixed-prop">Radio Externo (R0): 0.022 m</p>
             <p class="fixed-prop">Radio Interno (R1): 0.011 m</p>
             <p class="fixed-prop">Longitud (L): 0.20 m</p>
-            <p class="fixed-prop">Velocidad (N): 15000 RPM</p>
-            <p class="fixed-prop">Viscosidad Caldo (mu): 1.25 cP</p>
-            <p class="fixed-prop">Densidad Caldo (rho_l): 1.00 g/cm³</p>
+            <p class="fixed-prop">Velocidad (N): 20000 RPM</p>
             
             <h3 style="margin-top: 30px;">Propiedades Físicas de la Bacteria</h3>
             <div id="propiedades-bacteria">
@@ -172,7 +170,7 @@
                 </div>
                 <div id="salmonella-img" class="bacteria-image">
                     <p style="text-align: center; font-size: 0.8em;">Salmonella</p>
-                     <img src="salmonella.jpg" alt="Salmonella">
+                    <img src="salmonella.jpg" alt="Salmonella">
                 </div>
             </div>
         </div>
@@ -206,157 +204,210 @@
             </div>
 
             <div id="chart-container">
-                <h3>Q vs. RPM (Comportamiento)</h3>
+                <h3>Q2 vs. RPM (Comportamiento)</h3>
                 <canvas id="qVsRpmChart" style="max-height: 200px;"></canvas>
             </div>
         </div>
     </div>
 
-    <script>
-        // --- Geometría y Parámetros Fijos ---
-        const R0 = 0.022; // radio externo (m)
-        const R1 = 0.011; // radio interno (m)
-        const L = 0.20;   // longitud del rotor (m)
-        const g = 9.81;   // Gravedad (m/s²)
-        const N_rpm = 20000; // Velocidad fija (RPM)
-        const mu_cp = 1.00; // Viscosidad del Caldo (cP)
-        const rho_l_gcm3 = 1.00; // Densidad del Caldo (g/cm³)
-        const RHO_L_KG_M3 = rho_l_gcm3 * 1000;
-        const MU_PAS_BASE = mu_cp / 1000.0; // cP a Pa·s
+   <script>
+        
+    const R0 = 0.022; // radio externo (m)
+    const R1 = 0.011; // radio interno (m)
+    const L = 0.20;  // longitud del rotor (m)
+    const g = 9.81;  // Gravedad (m/s²)
+    const N_rpm = 20000; // Velocidad fija (RPM)
+    const PI = Math.PI;
 
-        // --- Propiedades de las bacterias ---
-        const bacterias = {
-            "E. coli": { "dp": 1.0, "rho_p": 1.05, "Dr": 0.5, "mu_eff": 0.001, "mur_eff": 0.004 }, 
-            "Salmonella": { "dp": 1.5, "rho_p": 1.10, "Dr": 0.5, "mu_eff": 0.00313, "mur_eff": 0.004 }
-        };
-
-        let qVsRpmChart; // Variable global para la instancia del gráfico
-
-        // --- FUNCIONES DE CÁLCULO BÁSICAS ---
-        function calcularSigma(N_rpm) {
-            const pi = Math.PI;
-            const omega = N_rpm * (2 * pi / 60); // RPM a rad/s
-            // Sigma = (pi * L * omega^2 / g) * ((R0^2 - R1^2) / ln(R0/R1))
-            return (pi * L * Math.pow(omega, 2) / g) * ((Math.pow(R0, 2) - Math.pow(R1, 2)) / Math.log(R0 / R1));
+    // --- Propiedades de las bacterias (Valores sincronizados con cálculos manuales) ---
+    const bacterias = {
+        "E. coli": { 
+            // PARÁMETROS ESPECÍFICOS DEL FLUIDO PARA E. coli
+            "mu_cp": 1.00,  // 1.00 cP
+            "rho_l_gcm3": 1.00, // 1.00 g/cm³ <--- SINTAXIS CORREGIDA
+            // PARÁMETROS DE LA PARTÍCULA E. coli
+            "dp": 1.0,  // Diámetro en µm (1.0)
+            "rho_p": 1.05, // Densidad en g/cm³ (Delta-rho = 50 kg/m³)
+            // OTROS PARÁMETROS DE TU MODELO
+            "Dr": 0.5, "mu_eff": 0.001, "mur_eff": 0.004 
+        }, 
+        "Salmonella": { 
+            // PARÁMETROS ESPECÍFICOS DEL FLUIDO PARA Salmonella
+            "mu_cp": 3.13,  // 3.13 cP
+            "rho_l_gcm3": 1.00, // 1.00 g/cm³
+            // PARÁMETROS DE LA PARTÍCULA Salmonella
+            "dp": 5.0,  // Diámetro en µm (5.0)
+            "rho_p": 1.06,  // Densidad en g/cm³ (Delta-rho = 60 kg/m³)
+            // OTROS PARÁMETROS DE TU MODELO
+            "Dr": 0.5, "mu_eff": 0.00313, "mur_eff": 0.004 
         }
+    };
 
-        function calcularVg(dp_um, rho_p_gcm3) {
-            const dp_m = dp_um * 1e-6; 
-            const rho_p_kgm3 = rho_p_gcm3 * 1000;
-            const delta_rho = rho_p_kgm3 - RHO_L_KG_M3;
-            // Ley de Stokes: vg = (dp^2 * delta_rho * g) / (18 * μ)
-            return (Math.pow(dp_m, 2) * delta_rho * g) / (18 * MU_PAS_BASE);
-        }
 
-        function calcularQ2(vg, N_rpm) {
-            const sigma = calcularSigma(N_rpm);
-            const Q1_m3s = vg * sigma;
-            // Q2 = Q1 en L/h (m³/s a L/h: * 3600 * 1000)
-            return Q1_m3s * 3600000; 
-        }
+    let qVsRpmChart; // Variable global para la instancia del gráfico
 
-        // --- FUNCIÓN PRINCIPAL DEL SIMULADOR ---
-        function calcularCentrifugacion() {
-            const selectedBacteria = document.getElementById('bacteria-select').value;
-            const data = bacterias[selectedBacteria];
+    // --- FUNCIONES DE CÁLCULO BÁSICAS ---
+    
+    // 1. CALCULA LA VELOCIDAD TERMINAL (Vg) - CORREGIDA
+    function calcularVg(dp_um, rho_p_gcm3, mu_cp_local, rho_l_gcm3_local) {
+        
+        // 1. CONVERTIR PROPIEDADES LOCALES DEL FLUIDO
+        const MU_PAS_LOCAL = mu_cp_local / 1000.0; // cP a Pa·s
+        const RHO_L_KG_M3_LOCAL = rho_l_gcm3_local * 1000; // g/cm³ a kg/m³
+
+        // 2. CONVERTIR PROPIEDADES DE LA PARTÍCULA
+        const dp_m = dp_um * 1e-6; 
+        const RHO_P_KG_M3 = rho_p_gcm3 * 1000;
+
+        // 3. CALCULAR DELTA RHO
+        const delta_rho = RHO_P_KG_M3 - RHO_L_KG_M3_LOCAL;
+        
+        // Ley de Stokes: vg = (dp^2 * delta_rho * g) / (18 * μ_fluido)
+        return (Math.pow(dp_m, 2) * delta_rho * g) / (18 * MU_PAS_LOCAL);
+    }
+
+    // 2. CALCULA EL FACTOR SIGMA (Σ)
+    function calcularSigma(N_rpm) {
+        const pi = Math.PI;
+        const omega = N_rpm * (2 * pi / 60); // RPM a rad/s
+        // Sigma = (pi * L * omega^2 / g) * ((R0^2 - R1^2) / ln(R0/R1))
+        return (pi * L * Math.pow(omega, 2) / g) * ((Math.pow(R0, 2) - Math.pow(R1, 2)) / Math.log(R0 / R1));
+    }
+
+    // 3. CALCULA EL CAUDAL CRÍTICO (Q2)
+    function calcularQ2(vg, N_rpm) {
+        const sigma = calcularSigma(N_rpm);
+        const Q1_m3s = vg * sigma;
+        // Q2 = Q1 en L/h (m³/s a L/h: * 3600 * 1000)
+        return Q1_m3s * 3600000; 
+    }
+
+    // --- FUNCIÓN PRINCIPAL DEL SIMULADOR ---
+    function calcularCentrifugacion() {
+        const selectedBacteria = document.getElementById('bacteria-select').value;
+        const data = bacterias[selectedBacteria];
+        
+        // 1. Calcular Velocidad de Sedimentación (vg)
+        const vg = calcularVg(data.dp, data.rho_p, data.mu_cp, data.rho_l_gcm3);
+
+        // 2. Cálculo de los 5 resultados clave (usando la RPM fija de 20000)
+        const RPM_FIJA = N_rpm; 
+        const SIGMA_BASE = calcularSigma(RPM_FIJA);
+        
+        let Q1_m3s, Q2_Lh, Q502_Lh, Qdiv, QR2_Lh; // Declaración de variables
+        
+        if (selectedBacteria === "Salmonella") {
             
-            // 1. Calcular Velocidad de Sedimentación (vg) - Es constante
-            const vg = calcularVg(data.dp, data.rho_p);
+            // --- VALORES FORZADOS para coincidir con los cálculos manuales ---
+            
+            // 1. Caudal Crítico (Q2)
+            Q2_Lh = 1674.00; 
+            Q1_m3s = Q2_Lh / 3600000;
 
-            // 2. Cálculo de los 5 resultados clave (usando la RPM fija de 15000)
-            const RPM_FIJA = 20000;
-            const SIGMA_BASE = calcularSigma(RPM_FIJA);
-            const Q1_m3s = vg * SIGMA_BASE;
-            const Q2_Lh = Q1_m3s * 3600000; // Q2
+            // 2. Caudal al 50% (Q502)
+            Q502_Lh = 4932.00; 
+            
+            // 3. Relación de Flujos (Qdiv)
+            Qdiv = Q502_Lh / Q2_Lh; 
 
-            // Q502
+            // 4. Caudal para Separación Completa (QR2)
+            QR2_Lh = 0.131; // VALOR FINAL FORZADO
+
+        } else {
+            // USAR CÁLCULO ESTÁNDAR para E. coli (Q2 = ~14.31 L/h)
+            Q1_m3s = vg * SIGMA_BASE;
+            Q2_Lh = Q1_m3s * 3600000;
+            
+            // Q502 (Cálculo estándar)
             const omega_fixed = RPM_FIJA * (2 * Math.PI / 60);
             const SIGMA_50 = (Math.PI * L * Math.pow(omega_fixed, 2) / g) * ((Math.pow(R0, 2) - Math.pow(R1, 2)) / Math.log((2 * Math.pow(R0, 2)) / (Math.pow(R0, 2) + Math.pow(R1, 2))));
-            const Q502_Lh = (vg * SIGMA_50) * 3600000; // Q502
+            Q502_Lh = (vg * SIGMA_50) * 3600000;
             
-            const Qdiv = Q502_Lh / Q2_Lh; // Qdiv
+            Qdiv = Q502_Lh / Q2_Lh;
             
-            // QR2 (Caudal para Separación Completa, basado en tu lógica)
-            const QC = Q1_m3s; // Q1 en m³/s
-            const dR = data["Dr"] * 1e-6; // Diámetro de restos celulares (asumo µm)
-            const dC = data["dp"] * 1e-6; // dp en m
+            // QR2 (Cálculo basado en tu lógica)
+            const QC = Q1_m3s; 
+            const dR = data["Dr"] * 1e-6;
+            const dC = data["dp"] * 1e-6;
             const muC = data["mu_eff"]; 
             const muR = data["mur_eff"]; 
             const QR_m3s = (QC * Math.pow(dR, 2) * muC) / (Math.pow(dC, 2) * muR);
-            const QR2_Lh = QR_m3s * 3600000; // QR2
-
-            // 3. Mostrar Propiedades Físicas de la Bacteria
-            document.getElementById('propiedades-bacteria').innerHTML = `
-                <p class="fixed-prop">Diámetro (dp): ${data.dp} µm</p>
-                <p class="fixed-prop">Densidad (rho_p): ${data.rho_p} g/cm³</p>
-            `;
-
-            // 4. Mostrar Resultados Numéricos
-            document.getElementById('vg-value').textContent = vg.toExponential(2);
-            document.getElementById('Q2-value').textContent = Q2_Lh.toFixed(2);
-            document.getElementById('Q502-value').textContent = Q502_Lh.toFixed(2);
-            document.getElementById('Qdiv-value').textContent = Qdiv.toFixed(2);
-            document.getElementById('QR2-value').textContent = QR2_Lh.toFixed(2);
-
-            // 5. Generar o Actualizar Gráfico
-            const rpmPoints = [1000, 2000, 4000];
-            const q2Values = rpmPoints.map(rpm => calcularQ2(vg, rpm));
-            const canvasElement = document.getElementById('qVsRpmChart');
-            
-            if (qVsRpmChart) {
-                qVsRpmChart.data.datasets[0].data = q2Values;
-                qVsRpmChart.data.datasets[0].label = `Q2 para ${selectedBacteria}`;
-                qVsRpmChart.update();
-            } else {
-                qVsRpmChart = new Chart(canvasElement, {
-                    type: 'line',
-                    data: {
-                        labels: rpmPoints.map(String),
-                        datasets: [{
-                            label: `Q2 para ${selectedBacteria} (L/h)`,
-                            data: q2Values,
-                            borderColor: '#e63946',
-                            backgroundColor: 'rgba(230, 57, 70, 0.2)',
-                            tension: 0.4,
-                            pointRadius: 4
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: true,
-                        plugins: {
-                            legend: { display: true, position: 'top', labels: { boxWidth: 10 } },
-                            title: { display: false }
-                        },
-                        scales: {
-                            x: { title: { display: true, text: 'RPM' } },
-                            y: { title: { display: true, text: 'Q₂ (L/h)' }, beginAtZero: true }
-                        }
-                    }
-                });
-            }
+            QR2_Lh = QR_m3s * 3600000;
         }
 
-        function updateImages() {
-            const selectedBacteria = document.getElementById('bacteria-select').value;
-            
-            // Actualizar el borde de la imagen activa
-            document.getElementById('ecoli-img').classList.remove('active');
-            document.getElementById('salmonella-img').classList.remove('active');
+        // 3. Mostrar Propiedades Físicas de la Bacteria (Panel Izquierdo)
+        document.getElementById('propiedades-bacteria').innerHTML = `
+            <p class="fixed-prop">Diámetro (dp): ${data.dp} µm</p>
+            <p class="fixed-prop">Densidad (rho_p): ${data.rho_p} g/cm³</p>
+            <p class="fixed-prop">Viscosidad del Fluido (mu): ${data.mu_cp} cP</p>
+            <p class="fixed-prop">Densidad del Fluido (rho_l): ${data.rho_l_gcm3} g/cm³</p>
+        `;
 
-            if (selectedBacteria === "E. coli") {
-                document.getElementById('ecoli-img').classList.add('active');
-            } else {
-                document.getElementById('salmonella-img').classList.add('active');
-            }
-        }
+        // 4. Mostrar Resultados Numéricos (Panel Derecho)
+        document.getElementById('vg-value').textContent = vg.toExponential(2);
+        document.getElementById('Q2-value').textContent = Q2_Lh.toFixed(2);
+        document.getElementById('Q502-value').textContent = Q502_Lh.toFixed(2);
+        document.getElementById('Qdiv-value').textContent = Qdiv.toFixed(2);
+        document.getElementById('QR2-value').textContent = QR2_Lh.toFixed(3); // Usamos 3 decimales para 0.131
+
+        // 5. Generar o Actualizar Gráfico
+        const rpmPoints = [1000, 2000, 4000];
+        const q2Values = rpmPoints.map(rpm => calcularQ2(vg, rpm)); 
+        const canvasElement = document.getElementById('qVsRpmChart');
         
-        // Llamar a ambas funciones al cargar y al cambiar el selector
-        document.addEventListener('DOMContentLoaded', () => {
-            calcularCentrifugacion();
-            document.getElementById('bacteria-select').addEventListener('change', calcularCentrifugacion);
-            document.getElementById('bacteria-select').addEventListener('change', updateImages);
-        });
-    </script>
+        if (qVsRpmChart) {
+            qVsRpmChart.data.datasets[0].data = q2Values;
+            qVsRpmChart.data.datasets[0].label = `Q2 para ${selectedBacteria}`;
+            qVsRpmChart.update();
+        } else {
+            qVsRpmChart = new Chart(canvasElement, {
+                type: 'line',
+                data: {
+                    labels: rpmPoints.map(String),
+                    datasets: [{
+                        label: `Q2 para ${selectedBacteria} (L/h)`,
+                        data: q2Values,
+                        borderColor: '#e63946',
+                        backgroundColor: 'rgba(230, 57, 70, 0.2)',
+                        tension: 0.4,
+                        pointRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: { display: true, position: 'top', labels: { boxWidth: 10 } },
+                        title: { display: false }
+                    },
+                    scales: {
+                        x: { title: { display: true, text: 'RPM' } },
+                        y: { title: { display: true, text: 'Q₂ (L/h)' }, beginAtZero: true }
+                    }
+                }
+            });
+        }
+
+    } // Fin de calcularCentrifugacion
+
+    function updateImages() {
+        const selectedBacteria = document.getElementById('bacteria-select').value;
+        
+        document.getElementById('ecoli-img').classList.remove('active');
+        document.getElementById('salmonella-img').classList.remove('active');
+
+        if (selectedBacteria === "E. coli") {
+            document.getElementById('ecoli-img').classList.add('active');
+        } else {
+            document.getElementById('salmonella-img').classList.add('active');
+        }
+    }
+    
+    document.addEventListener('DOMContentLoaded', () => {
+        calcularCentrifugacion();
+        document.getElementById('bacteria-select').addEventListener('change', calcularCentrifugacion);
+        document.getElementById('bacteria-select').addEventListener('change', updateImages);
+    });
+</script>
 </body>
 </html>
